@@ -1,0 +1,75 @@
+package com.pipeline;
+
+public class DataPipelineRunner {
+    public static void main(String[] args) {
+        /**
+         * 1. 스크립트 개별실행
+         *  1-1. bridge.sh 실행
+         *      * 인자값: extension: scd or json, mode: static or dynamic, collectionId
+         *      1-1-1. scd static 모드 실행
+         *      1-1-2. scd dynamic 모드 실행
+         *      1-1-3. json static 모드 실행
+         *      1-1-4. json dynamic 모드 실행
+         *      * 결과물: B-{이렇게저렇게}-{static일 경우 C, dynamic일 경우 U/D/I}.{extension.upperCase}
+         *      * 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/{extension}/{mode}/
+         *  1-2. tea2_util.sh 실행
+         *      * 선제작업: 1-1에서 진행한 결과물을 이동해야함
+         *          - 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/scd/tea_before/
+         *      * 인자값: collectionId, listenerIP, listenerPort
+         *      1-2-1. 실행
+         *      * 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/scd/tea_done/
+         *  1-3. gateway.sh 실행
+         *      * 인자값: collectionId, mode: [convert-json, convert-vector, index-json, index-scd], mode2: static or dynamic
+         *      * 선제작업
+         *          - 1-2 또는 1-1에서 진행한 결과물을 이동해야함(이동할 디렉토리는 아래 케이스별로 다름)
+         *          - convert-json, index-scd는 파일 확장자기 SCD인지 확인, convert-vector, index-json은 파일 확장자기 json인지 확인
+         *      1-3-1. convert-json 실행
+         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/convert-json/index
+         *          - 결과물: 기존 결과물 파일에서 확장자만 SCD -> json(소문자)로 변경됨
+         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/convert-json/backup
+         *      1-3-2. convert-vector 실행
+         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/convert-vector/index
+         *          - 결과물: 기존 결과물 파일에서 맨 앞 B -> V로 변경됨
+         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/convert-vector/backup
+         *      1-3-3. index-json static 모드 실행
+         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/json/index
+         *          - 결과물: 기존 결과물과 동일
+         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/json/backup
+         *      1-3-4. index-json dynamic 모드 실행
+         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/json/index
+         *          - 결과물: 기존 결과물과 동일
+         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/json/backup
+         *      1-3-5. index-scd static 모드 실행
+         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/scd/index
+         *          - 결과물: 기존 결과물과 동일
+         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/scd/backup
+         *      1-3-6. index-scd dynamic 모드 실행
+         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/scd/index
+         *          - 결과물: 기존 결과물과 동일
+         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/scd/backup
+         * 2. 스크립트 전체 실행
+         *  2-1. bridge scd static -> index-scd static
+         *      => [1-1-1] -> [1-3-5]
+         *  2-2. bridge scd static -> convert-json -> convert-vector -> index-json static
+         *      => [1-1-1] -> [1-3-1] -> [1-3-2] -> [1-3-5]
+         *  2-3. bridge scd static -> tea2_util -> convert-json -> convert-vector -> index-json static
+         *      => [1-1-1] -> [1-2-1] -> [1-3-1] -> [1-3-2] -> [1-3-5]
+         *  2-5. bridge scd dynamic -> index-scd dynamic
+         *      => [1-1-2] -> [1-3-6]
+         *  2-6. bridge scd dynamic -> convert-json -> convert-vector -> index-json dynamic
+         *      => [1-1-2] -> [1-3-1] -> [1-3-2] -> [1-3-6]
+         *  2-7. bridge scd dynamic -> tea2_util -> convert-json -> convert-vector -> index-json dynamic
+         *      => [1-1-2] -> [1-2-1] -> [1-3-1] -> [1-3-2] -> [1-3-6]
+         *  2-8. bridge json static -> index-json static
+         *      => [1-1-3] -> [1-
+         *  2-9. bridge json static -> convert-vector -> index-json static
+         *      => [1-1-3] ->
+         *  2-10. bridge json dynamic -> index-json dynamic
+         *      => [1-1-4] ->
+         *  2-11. bridge json dynamic -> convert-vector -> index-json dynamic
+         *      => [1-1-4] ->
+         */
+
+
+    }
+}
