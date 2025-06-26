@@ -1,6 +1,44 @@
 package com.pipeline;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.Properties;
+
 public class DataPipelineRunner {
+
+    private static final String CONFIG_FILE = "dpr.properties";
+    private static final String DEFAULT_SF1_HOME = "/app/search/sf1-v7";
+    private static String sf1Home = DEFAULT_SF1_HOME;
+    private static String collectionBaseDir;
+
+    static {
+        Properties props = new Properties();
+        Path cfg = Paths.get(CONFIG_FILE);
+        if (Files.exists(cfg)) {
+            try (InputStream in = Files.newInputStream(cfg)) {
+                props.load(in);
+            } catch (IOException e) {
+                System.err.println("Failed to load properties: " + e.getMessage());
+            }
+        }
+
+        sf1Home = props.getProperty("sf1.home.dir", DEFAULT_SF1_HOME);
+        if (!sf1Home.endsWith("/")) {
+            sf1Home += "/";
+        }
+
+        String val = props.getProperty("collection.base.dir");
+        if (val != null && !val.isEmpty()) {
+            collectionBaseDir = val.endsWith("/") ? val : val + "/";
+        } else {
+            collectionBaseDir = sf1Home + "collection/";
+        }
+    }
 
     // 확장자가 scd 또는 json 인지 확인
     private static boolean isValidExtension(String ext) {
@@ -18,6 +56,55 @@ public class DataPipelineRunner {
                "convert-vector".equals(op) ||
                "index-json".equals(op) ||
                "index-scd".equals(op);
+    }
+
+    // 지정한 확장자의 파일을 대상 디렉토리로 이동
+    private static void moveFiles(String srcDir, String destDir, String extension) throws IOException {
+        Path src = Paths.get(srcDir);
+        if (!Files.exists(src) || !Files.isDirectory(src)) {
+            return; // source directory not present
+        }
+        Path dest = Paths.get(destDir);
+        if (!Files.exists(dest)) {
+            Files.createDirectories(dest);
+        }
+
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(src, "*." + extension)) {
+            for (Path file : stream) {
+                Files.move(file, dest.resolve(file.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+    }
+
+    // tea2_util.sh 실행 전 필요한 파일 이동 처리
+    private static void prepareForTea(String collectionId) throws IOException {
+        String base = collectionBaseDir + collectionId + "/scd";
+        moveFiles(base + "/static", base + "/tea_before", "scd");
+        moveFiles(base + "/dynamic", base + "/tea_before", "scd");
+    }
+
+    // gateway.sh 실행 전 필요한 파일 이동 처리
+    private static void prepareForGateway(String collectionId, String operation) throws IOException {
+        String base = collectionBaseDir + collectionId;
+        switch (operation) {
+            case "convert-json":
+                moveFiles(base + "/scd/tea_done", base + "/convert-json/index", "scd");
+                moveFiles(base + "/scd/static", base + "/convert-json/index", "scd");
+                moveFiles(base + "/scd/dynamic", base + "/convert-json/index", "scd");
+                break;
+            case "convert-vector":
+                moveFiles(base + "/convert-json/backup", base + "/convert-vector/index", "json");
+                break;
+            case "index-json":
+                moveFiles(base + "/convert-vector/backup", base + "/json/index", "json");
+                moveFiles(base + "/convert-json/backup", base + "/json/index", "json");
+                break;
+            case "index-scd":
+                moveFiles(base + "/scd/tea_done", base + "/scd/index", "scd");
+                moveFiles(base + "/scd/static", base + "/scd/index", "scd");
+                moveFiles(base + "/scd/dynamic", base + "/scd/index", "scd");
+                break;
+        }
     }
     public static void main(String[] args) {
         if (args.length == 0) {
@@ -60,6 +147,7 @@ public class DataPipelineRunner {
                     collectionId = args[1];
                     String listenerIP = args[2];
                     String port = args[3];
+                    prepareForTea(collectionId);
                     new ProcessBuilder("sh", "tea2_util.sh", collectionId, listenerIP, port)
                             .inheritIO()
                             .start()
@@ -82,6 +170,7 @@ public class DataPipelineRunner {
                         System.out.println("Invalid mode: " + mode + " (allowed: static, dynamic)");
                         System.exit(1);
                     }
+                    prepareForGateway(collectionId, operation);
                     new ProcessBuilder("sh", "gateway.sh", collectionId, operation, mode)
                             .inheritIO()
                             .start()
