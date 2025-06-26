@@ -27,7 +27,7 @@ public class DataPipelineRunner {
             }
         }
 
-        sf1Home = props.getProperty("sf1_home", DEFAULT_SF1_HOME);
+        sf1Home = props.getProperty("sf1.home.dir", DEFAULT_SF1_HOME);
         if (!sf1Home.endsWith("/")) {
             sf1Home += "/";
         }

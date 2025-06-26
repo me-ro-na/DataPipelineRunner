@@ -32,12 +32,12 @@
     ```bash
     javac -d out/dpr src/com/pipeline/DataPipelineRunner.java
     ```
-3. 필요 시 데이터 컬렉션 기본 경로를 설정합니다. 기본값은 `/app/search/sf1-v7/collection/` 입니다.
-   프로젝트 루트에 `dpr.properties` 파일을 만들고 `sf1_home`(기본 `/app/search/sf1-v7`)이나
+3. 필요 시 데이터 컬렉션 기본 경로를 설정합니다. 기본값은 `/sf1_data/collection/` 입니다.
+   프로젝트 루트에 `dpr.properties` 파일을 만들고 `sf1.home.dir`(기본 `/app/search/sf1-v7`)이나
    `collection.base.dir` 값을 지정해 경로를 변경할 수 있습니다.
    ```properties
-   sf1_home=/app/search/sf1-v7
-   collection.base.dir=/app/search/sf1-v7/collection/
+   sf1.home.dir=/app/search/sf1-v7
+   collection.base.dir=/sf1_data/collection/
    ```
 4. 컴파일된 클래스 파일을 지정 디렉토리로 이동합니다.
     ```bash
@@ -184,12 +184,12 @@ java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 co
 
 1. **bridge.sh**
    - 입력: `extension`, `mode`, `collectionId`
-   - 출력: `{sf1_home}/collection/{collectionId}/{extension}/{mode}/B-...` 파일
+   - 출력: `{sf1.home.dir}/collection/{collectionId}/{extension}/{mode}/B-...` 파일
 
 2. **tea2_util.sh**
    - 입력: `collectionId`, `listenerIP`, `port`
-   - 동작: `{sf1_home}/collection/{collectionId}/scd/tea_before/` 이동 후 처리
-   - 출력: `{sf1_home}/collection/{collectionId}/scd/tea_done/`
+   - 동작: `{sf1.home.dir}/collection/{collectionId}/scd/tea_before/` 이동 후 처리
+   - 출력: `{sf1.home.dir}/collection/{collectionId}/scd/tea_done/`
 
 3. **gateway.sh**
    - 입력: `collectionId`, `operation`, `mode`
