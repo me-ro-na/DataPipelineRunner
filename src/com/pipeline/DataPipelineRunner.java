@@ -1,13 +1,35 @@
 package com.pipeline;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Properties;
 
 public class DataPipelineRunner {
+
+    private static final String CONFIG_FILE = "dpr.properties";
+    private static final String DEFAULT_BASE_DIR = "/sf1_data/collection/";
+    private static String collectionBaseDir = DEFAULT_BASE_DIR;
+
+    static {
+        Properties props = new Properties();
+        Path cfg = Paths.get(CONFIG_FILE);
+        if (Files.exists(cfg)) {
+            try (InputStream in = Files.newInputStream(cfg)) {
+                props.load(in);
+            } catch (IOException e) {
+                System.err.println("Failed to load properties: " + e.getMessage());
+            }
+            String val = props.getProperty("collection.base.dir");
+            if (val != null && !val.isEmpty()) {
+                collectionBaseDir = val.endsWith("/") ? val : val + "/";
+            }
+        }
+    }
 
     // 확장자가 scd 또는 json 인지 확인
     private static boolean isValidExtension(String ext) {
@@ -47,14 +69,14 @@ public class DataPipelineRunner {
 
     // tea2_util.sh 실행 전 필요한 파일 이동 처리
     private static void prepareForTea(String collectionId) throws IOException {
-        String base = "/sf1_data/collection/" + collectionId + "/scd";
+        String base = collectionBaseDir + collectionId + "/scd";
         moveFiles(base + "/static", base + "/tea_before", "scd");
         moveFiles(base + "/dynamic", base + "/tea_before", "scd");
     }
 
     // gateway.sh 실행 전 필요한 파일 이동 처리
     private static void prepareForGateway(String collectionId, String operation) throws IOException {
-        String base = "/sf1_data/collection/" + collectionId;
+        String base = collectionBaseDir + collectionId;
         switch (operation) {
             case "convert-json":
                 moveFiles(base + "/scd/tea_done", base + "/convert-json/index", "scd");

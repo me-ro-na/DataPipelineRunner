@@ -32,7 +32,12 @@
     ```bash
     javac -d out/dpr src/com/pipeline/DataPipelineRunner.java
     ```
-3. 컴파일된 클래스 파일을 지정 디렉토리로 이동합니다.
+3. 필요 시 데이터 컬렉션 기본 경로를 설정합니다. 기본값은 `/sf1_data/collection/` 입니다.
+   프로젝트 루트에 `dpr.properties` 파일을 만들고 `collection.base.dir` 값을 지정하세요.
+   ```properties
+   collection.base.dir=/path/to/your/collection/
+   ```
+4. 컴파일된 클래스 파일을 지정 디렉토리로 이동합니다.
     ```bash
     mkdir -p ${SF1_HOME}/lib/custom
     cp -r out/dpr/* ${SF1_HOME}/lib/custom/
