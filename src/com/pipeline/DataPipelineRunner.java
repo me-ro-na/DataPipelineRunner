@@ -1,6 +1,21 @@
 package com.pipeline;
 
 public class DataPipelineRunner {
+
+    private static boolean isValidExtension(String ext) {
+        return "scd".equals(ext) || "json".equals(ext);
+    }
+
+    private static boolean isValidMode(String mode) {
+        return "static".equals(mode) || "dynamic".equals(mode);
+    }
+
+    private static boolean isValidOperation(String op) {
+        return "convert-json".equals(op) ||
+               "convert-vector".equals(op) ||
+               "index-json".equals(op) ||
+               "index-scd".equals(op);
+    }
     public static void main(String[] args) {
         if (args.length == 0) {
             System.out.println("Usage: java DataPipelineRunner <command> [options]");
@@ -18,6 +33,14 @@ public class DataPipelineRunner {
                     }
                     String extension = args[1];
                     String mode = args[2];
+                    if (!isValidExtension(extension)) {
+                        System.out.println("Invalid extension: " + extension + " (allowed: scd, json)");
+                        System.exit(1);
+                    }
+                    if (!isValidMode(mode)) {
+                        System.out.println("Invalid mode: " + mode + " (allowed: static, dynamic)");
+                        System.exit(1);
+                    }
                     String collectionId = args[3];
                     new ProcessBuilder("sh", "bridge.sh", extension, mode, collectionId)
                             .inheritIO()
@@ -47,6 +70,14 @@ public class DataPipelineRunner {
                     collectionId = args[1];
                     String operation = args[2];
                     mode = args[3];
+                    if (!isValidOperation(operation)) {
+                        System.out.println("Invalid operation: " + operation + " (allowed: convert-json, convert-vector, index-json, index-scd)");
+                        System.exit(1);
+                    }
+                    if (!isValidMode(mode)) {
+                        System.out.println("Invalid mode: " + mode + " (allowed: static, dynamic)");
+                        System.exit(1);
+                    }
                     new ProcessBuilder("sh", "gateway.sh", collectionId, operation, mode)
                             .inheritIO()
                             .start()
