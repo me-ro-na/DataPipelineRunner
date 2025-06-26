@@ -12,8 +12,9 @@ import java.util.Properties;
 public class DataPipelineRunner {
 
     private static final String CONFIG_FILE = "dpr.properties";
-    private static final String DEFAULT_BASE_DIR = "/sf1_data/collection/";
-    private static String collectionBaseDir = DEFAULT_BASE_DIR;
+    private static final String DEFAULT_SF1_HOME = "/app/search/sf1-v7";
+    private static String sf1Home = DEFAULT_SF1_HOME;
+    private static String collectionBaseDir;
 
     static {
         Properties props = new Properties();
@@ -24,10 +25,18 @@ public class DataPipelineRunner {
             } catch (IOException e) {
                 System.err.println("Failed to load properties: " + e.getMessage());
             }
-            String val = props.getProperty("collection.base.dir");
-            if (val != null && !val.isEmpty()) {
-                collectionBaseDir = val.endsWith("/") ? val : val + "/";
-            }
+        }
+
+        sf1Home = props.getProperty("sf1_home", DEFAULT_SF1_HOME);
+        if (!sf1Home.endsWith("/")) {
+            sf1Home += "/";
+        }
+
+        String val = props.getProperty("collection.base.dir");
+        if (val != null && !val.isEmpty()) {
+            collectionBaseDir = val.endsWith("/") ? val : val + "/";
+        } else {
+            collectionBaseDir = sf1Home + "collection/";
         }
     }
 
