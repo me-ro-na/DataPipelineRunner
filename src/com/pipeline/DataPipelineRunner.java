@@ -2,14 +2,17 @@ package com.pipeline;
 
 public class DataPipelineRunner {
 
+    // 확장자가 scd 또는 json 인지 확인
     private static boolean isValidExtension(String ext) {
         return "scd".equals(ext) || "json".equals(ext);
     }
 
+    // 실행 모드가 static 또는 dynamic 인지 확인
     private static boolean isValidMode(String mode) {
         return "static".equals(mode) || "dynamic".equals(mode);
     }
 
+    // gateway 명령의 operation 값 유효성 검사
     private static boolean isValidOperation(String op) {
         return "convert-json".equals(op) ||
                "convert-vector".equals(op) ||
@@ -24,6 +27,7 @@ public class DataPipelineRunner {
 
         String command = args[0];
 
+        // 명령어에 따라 각 스크립트를 실행
         try {
             switch (command) {
                 case "bridge":
@@ -48,9 +52,9 @@ public class DataPipelineRunner {
                             .waitFor();
                     break;
 
-                case "tea2":
+                case "tea":
                     if (args.length != 4) {
-                        System.out.println("Usage: tea2 <collectionId> <listenerIP> <port>");
+                        System.out.println("Usage: tea <collectionId> <listenerIP> <port>");
                         System.exit(1);
                     }
                     collectionId = args[1];
