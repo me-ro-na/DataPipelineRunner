@@ -2,6 +2,68 @@ package com.pipeline;
 
 public class DataPipelineRunner {
     public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.println("Usage: java DataPipelineRunner <command> [options]");
+            System.exit(1);
+        }
+
+        String command = args[0];
+
+        try {
+            switch (command) {
+                case "bridge":
+                    if (args.length != 4) {
+                        System.out.println("Usage: bridge <extension> <mode> <collectionId>");
+                        System.exit(1);
+                    }
+                    String extension = args[1];
+                    String mode = args[2];
+                    String collectionId = args[3];
+                    new ProcessBuilder("sh", "bridge.sh", extension, mode, collectionId)
+                            .inheritIO()
+                            .start()
+                            .waitFor();
+                    break;
+
+                case "tea2":
+                    if (args.length != 4) {
+                        System.out.println("Usage: tea2 <collectionId> <listenerIP> <port>");
+                        System.exit(1);
+                    }
+                    collectionId = args[1];
+                    String listenerIP = args[2];
+                    String port = args[3];
+                    new ProcessBuilder("sh", "tea2_util.sh", collectionId, listenerIP, port)
+                            .inheritIO()
+                            .start()
+                            .waitFor();
+                    break;
+
+                case "gateway":
+                    if (args.length != 4) {
+                        System.out.println("Usage: gateway <collectionId> <operation> <mode>");
+                        System.exit(1);
+                    }
+                    collectionId = args[1];
+                    String operation = args[2];
+                    mode = args[3];
+                    new ProcessBuilder("sh", "gateway.sh", collectionId, operation, mode)
+                            .inheritIO()
+                            .start()
+                            .waitFor();
+                    break;
+
+                default:
+                    System.out.println("Unknown command: " + command);
+                    System.exit(1);
+            }
+        } catch (Exception e) {
+            System.err.println("Error running command: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(1);
+        }
+
+
         /**
          * 1. 스크립트 개별실행
          *  1-1. bridge.sh 실행
@@ -61,13 +123,13 @@ public class DataPipelineRunner {
          *  2-7. bridge scd dynamic -> tea2_util -> convert-json -> convert-vector -> index-json dynamic
          *      => [1-1-2] -> [1-2-1] -> [1-3-1] -> [1-3-2] -> [1-3-6]
          *  2-8. bridge json static -> index-json static
-         *      => [1-1-3] -> [1-
+         *      => [1-1-3] -> [1-3-3]
          *  2-9. bridge json static -> convert-vector -> index-json static
-         *      => [1-1-3] ->
+         *      => [1-1-3] -> [1-3-2] -> [1-3-3]
          *  2-10. bridge json dynamic -> index-json dynamic
-         *      => [1-1-4] ->
+         *      => [1-1-4] -> [1-3-4]
          *  2-11. bridge json dynamic -> convert-vector -> index-json dynamic
-         *      => [1-1-4] ->
+         *      => [1-1-4] -> [1-3-2] -> [1-3-4]
          */
 
 

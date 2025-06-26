@@ -1,93 +1,196 @@
 # DataPipelineRunner
 
 
+## 프로젝트 소개
 
-## Getting started
+`DataPipelineRunner`는 다양한 데이터 처리 스크립트를 통합하여 일관된 커맨드 흐름으로 실행할 수 있도록 도와주는 Java 기반 커맨드 실행기입니다. 다음과 같은 배치 작업을 지원
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+- **bridge.sh**: SCD/JSON 데이터 수집(생성) 기능 수행
+- **tea2_util.sh**: TEA2 사전 처리 및 후속 작업
+- **gateway.sh**: 변환 및 인덱싱 작업
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+각 스크립트를 개별 호출하거나, 전체 파이프라인(2-1~2-11) 시나리오에 따라 연속 실행할 수 있습니다.
 
-## Add your files
+---
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## 요구 사항
 
+- Java 8 이상
+- Unix 계열 OS (Linux/macOS)
+- 쉘 스크립트 파일 (`bridge.sh`, `tea2_util.sh`, `gateway.sh`)에 실행 권한 부여
+
+---
+
+## 설치 및 빌드
+
+1. 저장소를 클론합니다.
+    ```bash
+    git clone <repository_url>
+    cd <repository_folder>
+    ```
+2. Java 컴파일
+    ```bash
+    javac -d out/dpr src/com/pipeline/DataPipelineRunner.java
+    ```
+3. 컴파일된 클래스 파일을 지정 디렉토리로 이동합니다.
+    ```bash
+    mkdir -p ${SF1_HOME}/lib/custom
+    cp -r out/dpr/* ${SF1_HOME}/lib/custom/
+    ```
+
+
+이제 `${SF1_HOME}/lib/custom` 디렉토리에서 `DataPipelineRunner`를 실행할 수 있습니다. (SF1_HOME은 환경에 따라 설정)
+
+또한 `DataPipelineRunner` 실행을 편리하게 하기 위해 Java 명령어를 감싼 쉘 스크립트(`run_dpr.sh` 등)를 함께 제공합니다. 해당 스크립트를 통해 명령어를 간편하게 실행할 수 있습니다. 예시:
+
+```bash
+./run_dpr.sh bridge scd static 12345
 ```
-cd existing_repo
-git remote add origin https://gitlab.wisenut.kr/hkim/datapipelinerunner.git
-git branch -M main
-git push -uf origin main
+
+---
+
+## 사용법
+
+`DataPipelineRunner`는 첫 번째 인자에 **커맨드**를, 이후 인자에 **옵션**을 받습니다.
+
+```bash
+java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner <command> [options]
 ```
 
-## Integrate with your tools
+### 지원 커맨드
 
-- [ ] [Set up project integrations](https://gitlab.wisenut.kr/hkim/datapipelinerunner/-/settings/integrations)
+| 커맨드    | 옵션                                  | 설명                                                       |
+|-----------|---------------------------------------|------------------------------------------------------------|
+| bridge    | `<extension> <mode> <collectionId>`   | SCD/JSON 생성 스크립트 실행 (`bridge.sh`)                 |
+| tea2      | `<collectionId> <listenerIP> <port>`  | TEA2 사전 처리 스크립트 실행 (`tea2_util.sh`)              |
+| gateway   | `<collectionId> <operation> <mode>`   | 변환/인덱싱 스크립트 실행 (`gateway.sh`)                   |
 
-## Collaborate with your team
+- **extension**: `scd` 또는 `json`
+- **mode**: `static` 또는 `dynamic`  
+  파이프라인 전체에 공통 적용되는 모드입니다.  
+  - `static`: 정적 수집 및 전체 인덱싱
+  - `dynamic`: 동적 수집 및 증분 인덱싱
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+- **collectionId**: 작업 대상 컬렉션 식별자
+- **listenerIP**, **port**: TEA2 유틸리티 리스너 정보
+- **operation**: `convert-json`/`convert-vector`/`index-json`/`index-scd`
 
-## Test and Deploy
+---
 
-Use the built-in continuous integration in GitLab.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+## 예제
 
-***
+아래 예제는 직접 java 명령어를 사용하는 방식이며, run_dpr.sh 스크립트를 사용할 경우 동일한 명령을 간단히 실행할 수 있습니다.
 
-# Editing this README
+### 개별 스크립트 실행
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```bash
+# SCD static 모드로 bridge
+java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd static 12345
 
-## Suggestions for a good README
+# TEA2 유틸리티 실행
+java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner tea2 12345 127.0.0.1 9000
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+# JSON dynamic 모드로 gateway
+java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json dynamic
+```
 
-## Name
-Choose a self-explaining name for your project.
+### 전체 파이프라인 시나리오
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+아래 2-1부터 2-11까지의 커맨드 시퀀스로 전체 파이프라인을 실행할 수 있습니다. 각 `collectionId`를 원하는 값으로 교체하여 실행하세요:
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+- **2-1.** bridge(scd/static) → index-scd(static)
+  ```bash
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd static 12345
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-scd static
+  ```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- **2-2.** bridge(scd/static) → convert-json → convert-vector → index-json(static)
+  ```bash
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd static 12345
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json static
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector static
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static
+  ```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+- **2-3.** bridge(scd/static) → tea2 → convert-json → convert-vector → index-json(static)
+  ```bash
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd static 12345
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner tea2 12345 127.0.0.1 9000
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json static
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector static
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static
+  ```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+- **2-5.** bridge(scd/dynamic) → index-scd(dynamic)
+  ```bash
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd dynamic 12345
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-scd dynamic
+  ```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+- **2-6.** bridge(scd/dynamic) → convert-json → convert-vector → index-json(dynamic)
+  ```bash
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd dynamic 12345
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json dynamic
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector dynamic
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic
+  ```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+- **2-7.** bridge(scd/dynamic) → tea2 → convert-json → convert-vector → index-json(dynamic)
+  ```bash
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd dynamic 12345
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner tea2 12345 127.0.0.1 9000
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json dynamic
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector dynamic
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic
+  ```
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+- **2-8.** bridge(json/static) → index-json(static)
+  ```bash
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge json static 12345
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static
+  ```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+- **2-9.** bridge(json/static) → convert-vector → index-json(static)
+  ```bash
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge json static 12345
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector static
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static
+  ```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+- **2-10.** bridge(json/dynamic) → index-json(dynamic)
+  ```bash
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge json dynamic 12345
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic
+  ```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+- **2-11.** bridge(json/dynamic) → convert-vector → index-json(dynamic)
+  ```bash
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge json dynamic 12345
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector dynamic
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic
+  ```
 
-## License
-For open source projects, say how it is licensed.
+---
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+## 스크립트 동작 요약
+
+1. **bridge.sh**
+   - 입력: `extension`, `mode`, `collectionId`
+   - 출력: `/sf1_data/collection/{collectionId}/{extension}/{mode}/B-...` 파일
+
+2. **tea2_util.sh**
+   - 입력: `collectionId`, `listenerIP`, `port`
+   - 동작: `/sf1_data/collection/{collectionId}/scd/tea_before/` 이동 후 처리
+   - 출력: `/sf1_data/collection/{collectionId}/scd/tea_done/`
+
+3. **gateway.sh**
+   - 입력: `collectionId`, `operation`, `mode`
+   - 출력: 각 모드별 백업 디렉토리에 결과 저장
+
+---
+
+## 문제 해결
+
+- **"Usage" 에러**: 인자 수를 확인하고 올바른 순서로 입력했는지 재검토하세요.
+- **스크립트 실행 권한**: `chmod +x bridge.sh tea2_util.sh gateway.sh` 로 실행 권한을 부여하세요.
