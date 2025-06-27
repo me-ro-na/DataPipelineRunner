@@ -81,7 +81,8 @@ java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner <command> [optio
 - **collectionId**: 작업 대상 컬렉션 식별자
 - **listenerIP**, **port**: TEA2 유틸리티 리스너 정보
 - **operation**: `convert-json`/`convert-vector`/`index-json`/`index-scd`
-- **prevStep**: 이전 단계 이름. 지정 시 해당 단계의 결과 디렉토리에서 파일을 이동합니다.
+- **prevStep**: 이전 단계 이름. 지정하면 해당 단계의 결과 디렉터리에서 파일을
+  이동한 뒤 `gateway.sh`를 실행합니다. 생략하면 파일 이동 없이 실행합니다.
 
 ---
 

@@ -135,22 +135,40 @@ public class DataPipelineRunner {
 
     // gateway.sh 실행 전 필요한 파일 이동 처리
     private static void prepareForGateway(String collectionId, String operation, String prevStep) throws IOException {
+        if (prevStep == null) {
+            // 이전 단계 정보가 없으면 파일 이동을 수행하지 않는다.
+            return;
+        }
+
         String base = collectionBaseDir + collectionId;
         switch (operation) {
             case "convert-json":
-                prepareScdMove(base, base + "/convert-json/index", prevStep);
+                if ("tea".equals(prevStep)) {
+                    moveFiles(base + "/scd/tea_done", base + "/convert-json/index", "scd");
+                } else if ("bridge".equals(prevStep)) {
+                    moveFiles(base + "/scd/static", base + "/convert-json/index", "scd");
+                    moveFiles(base + "/scd/dynamic", base + "/convert-json/index", "scd");
+                }
                 break;
             case "convert-vector":
-                if (prevStep == null || "convert-json".equals(prevStep)) {
-                    moveFilesBatch(base + "/convert-vector/index", "json",
-                            base + "/convert-json/backup");
+                if ("convert-json".equals(prevStep)) {
+                    moveFiles(base + "/convert-json/backup", base + "/convert-vector/index", "json");
                 }
                 break;
             case "index-json":
-                prepareJsonMove(base, base + "/json/index", prevStep);
+                if ("convert-vector".equals(prevStep)) {
+                    moveFiles(base + "/convert-vector/backup", base + "/json/index", "json");
+                } else if ("convert-json".equals(prevStep)) {
+                    moveFiles(base + "/convert-json/backup", base + "/json/index", "json");
+                }
                 break;
             case "index-scd":
-                prepareScdMove(base, base + "/scd/index", prevStep);
+                if ("tea".equals(prevStep)) {
+                    moveFiles(base + "/scd/tea_done", base + "/scd/index", "scd");
+                } else if ("bridge".equals(prevStep)) {
+                    moveFiles(base + "/scd/static", base + "/scd/index", "scd");
+                    moveFiles(base + "/scd/dynamic", base + "/scd/index", "scd");
+                }
                 break;
         }
     }
