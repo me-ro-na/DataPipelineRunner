@@ -70,7 +70,7 @@ java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner <command> [optio
 |-----------|---------------------------------------|------------------------------------------------------------|
 | bridge    | `<extension> <mode> <collectionId>`   | SCD/JSON 생성 스크립트 실행 (`bridge.sh`)                 |
 | tea       | `<collectionId> <listenerIP> <port>`  | TEA2 사전 처리 스크립트 실행 (`tea2_util.sh`)              |
-| gateway   | `<collectionId> <operation> <mode>`   | 변환/인덱싱 스크립트 실행 (`gateway.sh`)                   |
+| gateway   | `<collectionId> <operation> <mode> [prevStep]`   | 변환/인덱싱 스크립트 실행 (`gateway.sh`)                   |
 
 - **extension**: `scd` 또는 `json`
 - **mode**: `static` 또는 `dynamic`  
@@ -81,6 +81,7 @@ java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner <command> [optio
 - **collectionId**: 작업 대상 컬렉션 식별자
 - **listenerIP**, **port**: TEA2 유틸리티 리스너 정보
 - **operation**: `convert-json`/`convert-vector`/`index-json`/`index-scd`
+- **prevStep**: 이전 단계 이름. 지정 시 해당 단계의 결과 디렉토리에서 파일을 이동합니다.
 
 ---
 
@@ -98,8 +99,8 @@ java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd stati
 # TEA2 유틸리티 실행
 java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner tea 12345 127.0.0.1 9000
 
-# JSON dynamic 모드로 gateway
-java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json dynamic
+# JSON dynamic 모드로 gateway (이전 단계가 tea2_util.sh인 경우)
+java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json dynamic tea
 ```
 
 ### 전체 파이프라인 시나리오
@@ -109,73 +110,73 @@ java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 co
 - **2-1.** bridge(scd/static) → index-scd(static)
   ```bash
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd static 12345
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-scd static
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-scd static bridge
   ```
 
 - **2-2.** bridge(scd/static) → convert-json → convert-vector → index-json(static)
   ```bash
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd static 12345
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json static
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector static
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json static bridge
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector static convert-json
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static convert-vector
   ```
 
  - **2-3.** bridge(scd/static) → tea → convert-json → convert-vector → index-json(static)
   ```bash
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd static 12345
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner tea 12345 127.0.0.1 9000
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json static
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector static
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json static tea
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector static convert-json
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static convert-vector
   ```
 
 - **2-5.** bridge(scd/dynamic) → index-scd(dynamic)
   ```bash
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd dynamic 12345
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-scd dynamic
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-scd dynamic bridge
   ```
 
 - **2-6.** bridge(scd/dynamic) → convert-json → convert-vector → index-json(dynamic)
   ```bash
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd dynamic 12345
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json dynamic
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector dynamic
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json dynamic bridge
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector dynamic convert-json
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic convert-vector
   ```
 
  - **2-7.** bridge(scd/dynamic) → tea → convert-json → convert-vector → index-json(dynamic)
   ```bash
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge scd dynamic 12345
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner tea 12345 127.0.0.1 9000
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json dynamic
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector dynamic
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-json dynamic tea
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector dynamic convert-json
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic convert-vector
   ```
 
 - **2-8.** bridge(json/static) → index-json(static)
   ```bash
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge json static 12345
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static bridge
   ```
 
 - **2-9.** bridge(json/static) → convert-vector → index-json(static)
   ```bash
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge json static 12345
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector static
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector static bridge
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json static convert-vector
   ```
 
 - **2-10.** bridge(json/dynamic) → index-json(dynamic)
   ```bash
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge json dynamic 12345
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic bridge
   ```
 
 - **2-11.** bridge(json/dynamic) → convert-vector → index-json(dynamic)
   ```bash
   java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner bridge json dynamic 12345
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector dynamic
-  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 convert-vector dynamic bridge
+  java -cp ${SF1_HOME}/lib/custom com.pipeline.DataPipelineRunner gateway 12345 index-json dynamic convert-vector
   ```
 
 ---

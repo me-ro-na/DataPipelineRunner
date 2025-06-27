@@ -58,6 +58,16 @@ public class DataPipelineRunner {
                "index-scd".equals(op);
     }
 
+    // 이전 단계 이름이 유효한지 확인
+    private static boolean isValidPrevStep(String step) {
+        return "bridge".equals(step) ||
+               "tea".equals(step) ||
+               "convert-json".equals(step) ||
+               "convert-vector".equals(step) ||
+               "index-json".equals(step) ||
+               "index-scd".equals(step);
+    }
+
     // 지정한 확장자의 파일을 대상 디렉토리로 이동
     private static void moveFiles(String srcDir, String destDir, String extension) throws IOException {
         Path src = Paths.get(srcDir);
@@ -84,25 +94,47 @@ public class DataPipelineRunner {
     }
 
     // gateway.sh 실행 전 필요한 파일 이동 처리
-    private static void prepareForGateway(String collectionId, String operation) throws IOException {
+    private static void prepareForGateway(String collectionId, String operation, String prevStep) throws IOException {
         String base = collectionBaseDir + collectionId;
         switch (operation) {
             case "convert-json":
-                moveFiles(base + "/scd/tea_done", base + "/convert-json/index", "scd");
-                moveFiles(base + "/scd/static", base + "/convert-json/index", "scd");
-                moveFiles(base + "/scd/dynamic", base + "/convert-json/index", "scd");
+                if (prevStep == null) {
+                    moveFiles(base + "/scd/tea_done", base + "/convert-json/index", "scd");
+                    moveFiles(base + "/scd/static", base + "/convert-json/index", "scd");
+                    moveFiles(base + "/scd/dynamic", base + "/convert-json/index", "scd");
+                } else if ("tea".equals(prevStep)) {
+                    moveFiles(base + "/scd/tea_done", base + "/convert-json/index", "scd");
+                } else if ("bridge".equals(prevStep)) {
+                    moveFiles(base + "/scd/static", base + "/convert-json/index", "scd");
+                    moveFiles(base + "/scd/dynamic", base + "/convert-json/index", "scd");
+                }
                 break;
             case "convert-vector":
-                moveFiles(base + "/convert-json/backup", base + "/convert-vector/index", "json");
+                if (prevStep == null || "convert-json".equals(prevStep)) {
+                    moveFiles(base + "/convert-json/backup", base + "/convert-vector/index", "json");
+                }
                 break;
             case "index-json":
-                moveFiles(base + "/convert-vector/backup", base + "/json/index", "json");
-                moveFiles(base + "/convert-json/backup", base + "/json/index", "json");
+                if (prevStep == null) {
+                    moveFiles(base + "/convert-vector/backup", base + "/json/index", "json");
+                    moveFiles(base + "/convert-json/backup", base + "/json/index", "json");
+                } else if ("convert-vector".equals(prevStep)) {
+                    moveFiles(base + "/convert-vector/backup", base + "/json/index", "json");
+                } else if ("convert-json".equals(prevStep)) {
+                    moveFiles(base + "/convert-json/backup", base + "/json/index", "json");
+                }
                 break;
             case "index-scd":
-                moveFiles(base + "/scd/tea_done", base + "/scd/index", "scd");
-                moveFiles(base + "/scd/static", base + "/scd/index", "scd");
-                moveFiles(base + "/scd/dynamic", base + "/scd/index", "scd");
+                if (prevStep == null) {
+                    moveFiles(base + "/scd/tea_done", base + "/scd/index", "scd");
+                    moveFiles(base + "/scd/static", base + "/scd/index", "scd");
+                    moveFiles(base + "/scd/dynamic", base + "/scd/index", "scd");
+                } else if ("tea".equals(prevStep)) {
+                    moveFiles(base + "/scd/tea_done", base + "/scd/index", "scd");
+                } else if ("bridge".equals(prevStep)) {
+                    moveFiles(base + "/scd/static", base + "/scd/index", "scd");
+                    moveFiles(base + "/scd/dynamic", base + "/scd/index", "scd");
+                }
                 break;
         }
     }
@@ -155,13 +187,14 @@ public class DataPipelineRunner {
                     break;
 
                 case "gateway":
-                    if (args.length != 4) {
-                        System.out.println("Usage: gateway <collectionId> <operation> <mode>");
+                    if (args.length < 4 || args.length > 5) {
+                        System.out.println("Usage: gateway <collectionId> <operation> <mode> [prevStep]");
                         System.exit(1);
                     }
                     collectionId = args[1];
                     String operation = args[2];
                     mode = args[3];
+                    String prevStep = args.length == 5 ? args[4] : null;
                     if (!isValidOperation(operation)) {
                         System.out.println("Invalid operation: " + operation + " (allowed: convert-json, convert-vector, index-json, index-scd)");
                         System.exit(1);
@@ -170,7 +203,11 @@ public class DataPipelineRunner {
                         System.out.println("Invalid mode: " + mode + " (allowed: static, dynamic)");
                         System.exit(1);
                     }
-                    prepareForGateway(collectionId, operation);
+                    if (prevStep != null && !isValidPrevStep(prevStep)) {
+                        System.out.println("Invalid prevStep: " + prevStep + " (allowed: bridge, tea, convert-json, convert-vector, index-json, index-scd)");
+                        System.exit(1);
+                    }
+                    prepareForGateway(collectionId, operation, prevStep);
                     new ProcessBuilder("sh", "gateway.sh", collectionId, operation, mode)
                             .inheritIO()
                             .start()
