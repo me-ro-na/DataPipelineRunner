@@ -86,11 +86,51 @@ public class DataPipelineRunner {
         }
     }
 
+    // 여러 소스 디렉토리의 파일을 한 번에 이동
+    private static void moveFilesBatch(String destDir, String extension, String... srcDirs) throws IOException {
+        for (String dir : srcDirs) {
+            moveFiles(dir, destDir, extension);
+        }
+    }
+
+    // 공통 SCD 이동 로직
+    private static void prepareScdMove(String base, String destDir, String prevStep) throws IOException {
+        if (prevStep == null) {
+            moveFilesBatch(destDir, "scd",
+                    base + "/scd/tea_done",
+                    base + "/scd/static",
+                    base + "/scd/dynamic");
+        } else if ("tea".equals(prevStep)) {
+            moveFilesBatch(destDir, "scd",
+                    base + "/scd/tea_done");
+        } else if ("bridge".equals(prevStep)) {
+            moveFilesBatch(destDir, "scd",
+                    base + "/scd/static",
+                    base + "/scd/dynamic");
+        }
+    }
+
+    // 공통 JSON 이동 로직
+    private static void prepareJsonMove(String base, String destDir, String prevStep) throws IOException {
+        if (prevStep == null) {
+            moveFilesBatch(destDir, "json",
+                    base + "/convert-vector/backup",
+                    base + "/convert-json/backup");
+        } else if ("convert-vector".equals(prevStep)) {
+            moveFilesBatch(destDir, "json",
+                    base + "/convert-vector/backup");
+        } else if ("convert-json".equals(prevStep)) {
+            moveFilesBatch(destDir, "json",
+                    base + "/convert-json/backup");
+        }
+    }
+
     // tea2_util.sh 실행 전 필요한 파일 이동 처리
     private static void prepareForTea(String collectionId) throws IOException {
         String base = collectionBaseDir + collectionId + "/scd";
-        moveFiles(base + "/static", base + "/tea_before", "scd");
-        moveFiles(base + "/dynamic", base + "/tea_before", "scd");
+        moveFilesBatch(base + "/tea_before", "scd",
+                base + "/static",
+                base + "/dynamic");
     }
 
     // gateway.sh 실행 전 필요한 파일 이동 처리
@@ -98,43 +138,19 @@ public class DataPipelineRunner {
         String base = collectionBaseDir + collectionId;
         switch (operation) {
             case "convert-json":
-                if (prevStep == null) {
-                    moveFiles(base + "/scd/tea_done", base + "/convert-json/index", "scd");
-                    moveFiles(base + "/scd/static", base + "/convert-json/index", "scd");
-                    moveFiles(base + "/scd/dynamic", base + "/convert-json/index", "scd");
-                } else if ("tea".equals(prevStep)) {
-                    moveFiles(base + "/scd/tea_done", base + "/convert-json/index", "scd");
-                } else if ("bridge".equals(prevStep)) {
-                    moveFiles(base + "/scd/static", base + "/convert-json/index", "scd");
-                    moveFiles(base + "/scd/dynamic", base + "/convert-json/index", "scd");
-                }
+                prepareScdMove(base, base + "/convert-json/index", prevStep);
                 break;
             case "convert-vector":
                 if (prevStep == null || "convert-json".equals(prevStep)) {
-                    moveFiles(base + "/convert-json/backup", base + "/convert-vector/index", "json");
+                    moveFilesBatch(base + "/convert-vector/index", "json",
+                            base + "/convert-json/backup");
                 }
                 break;
             case "index-json":
-                if (prevStep == null) {
-                    moveFiles(base + "/convert-vector/backup", base + "/json/index", "json");
-                    moveFiles(base + "/convert-json/backup", base + "/json/index", "json");
-                } else if ("convert-vector".equals(prevStep)) {
-                    moveFiles(base + "/convert-vector/backup", base + "/json/index", "json");
-                } else if ("convert-json".equals(prevStep)) {
-                    moveFiles(base + "/convert-json/backup", base + "/json/index", "json");
-                }
+                prepareJsonMove(base, base + "/json/index", prevStep);
                 break;
             case "index-scd":
-                if (prevStep == null) {
-                    moveFiles(base + "/scd/tea_done", base + "/scd/index", "scd");
-                    moveFiles(base + "/scd/static", base + "/scd/index", "scd");
-                    moveFiles(base + "/scd/dynamic", base + "/scd/index", "scd");
-                } else if ("tea".equals(prevStep)) {
-                    moveFiles(base + "/scd/tea_done", base + "/scd/index", "scd");
-                } else if ("bridge".equals(prevStep)) {
-                    moveFiles(base + "/scd/static", base + "/scd/index", "scd");
-                    moveFiles(base + "/scd/dynamic", base + "/scd/index", "scd");
-                }
+                prepareScdMove(base, base + "/scd/index", prevStep);
                 break;
         }
     }
