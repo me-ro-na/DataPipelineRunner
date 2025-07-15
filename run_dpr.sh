@@ -4,15 +4,24 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SRC="$SCRIPT_DIR/src/com/pipeline/DataPipelineRunner.java"
-OUT="$SCRIPT_DIR/out"
-CLASS_FILE="$OUT/com/pipeline/DataPipelineRunner.class"
+WORKING_DIRECTORY="$(cd "$(dirname "$0")" && pwd)"
+SF1_HOME=$(
+    cd "$WORKING_DIRECTORY/../"
+    pwd
+)
+
+JAVA_HOME=$SF1_HOME/jdk
+export JAVA_HOME
+
+CLASS_DIRECTORY="$SF1_HOME/lib/custom/DataPipelineRunner"
+SRC="$CLASS_DIRECTORY/DataPipelineRunner.java"
+OUT="$CLASS_DIRECTORY/out"
+CLASS_FILE="$OUT/DataPipelineRunner.class"
 
 # Compile if necessary
 if [ ! -f "$CLASS_FILE" ] || [ "$SRC" -nt "$CLASS_FILE" ]; then
     mkdir -p "$OUT"
-    javac -d "$OUT" "$SRC"
+    $JAVA_HOME/bin/javac -d "$OUT" "$SRC"
 fi
 
 if [ $# -eq 0 ]; then
@@ -66,5 +75,5 @@ case "$CMD" in
         ;;
 esac
 
-cd "$SCRIPT_DIR"
-java -cp "$OUT" com.pipeline.DataPipelineRunner "$CMD" "${ARGS[@]}"
+cd "$WORKING_DIRECTORY"
+$JAVA_HOME/bin/java -cp "$OUT" com.pipeline.DataPipelineRunner "$CLASS_DIRECTORY/dpr.properties" "$CMD" "${ARGS[@]}"

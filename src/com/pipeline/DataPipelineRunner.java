@@ -11,14 +11,19 @@ import java.util.Properties;
 
 public class DataPipelineRunner {
 
-    private static final String CONFIG_FILE = "dpr.properties";
     private static final String DEFAULT_SF1_HOME = "/app/search/sf1-v7";
     private static String sf1Home = DEFAULT_SF1_HOME;
     private static String collectionBaseDir;
 
+    // Config path used for property loading
+    private static String configPath = "dpr.properties";
+    private static Properties props = new Properties();
+
     static {
-        Properties props = new Properties();
-        Path cfg = Paths.get(CONFIG_FILE);
+        // Default to using dpr.properties if no path is specified later
+        configPath = "dpr.properties";
+        props = new Properties();
+        Path cfg = Paths.get(configPath);
         if (Files.exists(cfg)) {
             try (InputStream in = Files.newInputStream(cfg)) {
                 props.load(in);
@@ -173,23 +178,50 @@ public class DataPipelineRunner {
         }
     }
     public static void main(String[] args) {
-        if (args.length == 0) {
+        // Check if config file specified as first argument
+        int cmdIdx = 0;
+        if (args.length > 0 && args[0].endsWith(".properties")) {
+            configPath = args[0];
+            // Reload properties from specified file
+            props = new Properties();
+            Path cfg = Paths.get(configPath);
+            if (Files.exists(cfg)) {
+                try (InputStream in = Files.newInputStream(cfg)) {
+                    props.load(in);
+                } catch (IOException e) {
+                    System.err.println("Failed to load properties: " + e.getMessage());
+                }
+            }
+            sf1Home = props.getProperty("sf1.home.dir", DEFAULT_SF1_HOME);
+            if (!sf1Home.endsWith("/")) {
+                sf1Home += "/";
+            }
+            String val = props.getProperty("collection.base.dir");
+            if (val != null && !val.isEmpty()) {
+                collectionBaseDir = val.endsWith("/") ? val : val + "/";
+            } else {
+                collectionBaseDir = sf1Home + "collection/";
+            }
+            cmdIdx = 1;
+        }
+
+        if (args.length <= cmdIdx) {
             System.out.println("Usage: java DataPipelineRunner <command> [options]");
             System.exit(1);
         }
 
-        String command = args[0];
+        String command = args[cmdIdx];
 
         // 명령어에 따라 각 스크립트를 실행
         try {
             switch (command) {
                 case "bridge":
-                    if (args.length != 4) {
+                    if (args.length - cmdIdx != 4) {
                         System.out.println("Usage: bridge <extension> <mode> <collectionId>");
                         System.exit(1);
                     }
-                    String extension = args[1];
-                    String mode = args[2];
+                    String extension = args[cmdIdx + 1];
+                    String mode = args[cmdIdx + 2];
                     if (!isValidExtension(extension)) {
                         System.out.println("Invalid extension: " + extension + " (allowed: scd, json)");
                         System.exit(1);
@@ -198,21 +230,28 @@ public class DataPipelineRunner {
                         System.out.println("Invalid mode: " + mode + " (allowed: static, dynamic)");
                         System.exit(1);
                     }
-                    String collectionId = args[3];
-                    new ProcessBuilder("sh", "bridge.sh", extension, mode, collectionId)
+                    String collectionId = args[cmdIdx + 3];
+                    String subDir = "json".equals(extension) ? "" : extension + "/";
+                    String configFile = sf1Home + "/config/source/" + subDir + collectionId + ".xml";
+                    Path configPath = Paths.get(configFile);
+                    if (!Files.exists(configPath)) {
+                        System.err.println("Configuration file not found: " + configFile);
+                        System.exit(1);
+                    }
+                    new ProcessBuilder("sh", "bridge.sh", configFile, "db", collectionId, mode)
                             .inheritIO()
                             .start()
                             .waitFor();
                     break;
 
                 case "tea":
-                    if (args.length != 4) {
+                    if (args.length - cmdIdx != 4) {
                         System.out.println("Usage: tea <collectionId> <listenerIP> <port>");
                         System.exit(1);
                     }
-                    collectionId = args[1];
-                    String listenerIP = args[2];
-                    String port = args[3];
+                    collectionId = args[cmdIdx + 1];
+                    String listenerIP = args[cmdIdx + 2];
+                    String port = args[cmdIdx + 3];
                     prepareForTea(collectionId);
                     new ProcessBuilder("sh", "tea2_util.sh", collectionId, listenerIP, port)
                             .inheritIO()
@@ -221,14 +260,14 @@ public class DataPipelineRunner {
                     break;
 
                 case "gateway":
-                    if (args.length < 4 || args.length > 5) {
+                    if ((args.length - cmdIdx) < 4 || (args.length - cmdIdx) > 5) {
                         System.out.println("Usage: gateway <collectionId> <operation> <mode> [prevStep]");
                         System.exit(1);
                     }
-                    collectionId = args[1];
-                    String operation = args[2];
-                    mode = args[3];
-                    String prevStep = args.length == 5 ? args[4] : null;
+                    collectionId = args[cmdIdx + 1];
+                    String operation = args[cmdIdx + 2];
+                    mode = args[cmdIdx + 3];
+                    String prevStep = (args.length - cmdIdx) == 5 ? args[cmdIdx + 4] : null;
                     if (!isValidOperation(operation)) {
                         System.out.println("Invalid operation: " + operation + " (allowed: convert-json, convert-vector, index-json, index-scd)");
                         System.exit(1);
@@ -242,6 +281,8 @@ public class DataPipelineRunner {
                         System.exit(1);
                     }
                     prepareForGateway(collectionId, operation, prevStep);
+                    String configFile = sf1Home + "/config/collection/" + operation + collectionId + ".yaml";
+                    Path configPath = Paths.get(configFile);
                     new ProcessBuilder("sh", "gateway.sh", collectionId, operation, mode)
                             .inheritIO()
                             .start()
