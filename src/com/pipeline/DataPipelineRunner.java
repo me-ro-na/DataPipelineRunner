@@ -8,19 +8,45 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Properties;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 public class DataPipelineRunner {
 
     private static final String DEFAULT_SF1_HOME = "/app/search/sf1-v7";
+    private static final String DEFAULT_TEA_HOME = "/app/search/tea";
     private static String sf1Home = DEFAULT_SF1_HOME;
     private static String collectionBaseDir;
+    private static String teaHome = DEFAULT_TEA_HOME;
 
     // Config path used for property loading
     private static String configPath = "dpr.properties";
     private static Properties props = new Properties();
 
+    private static final Map<String, FilePattern> movePatternMap = new HashMap<>();
+    private static final Map<String, String[]> deletePatternMap = new HashMap<>();
+
+    // move file pattern
     static {
-        // Default to using dpr.properties if no path is specified later
+        movePatternMap.put("bridge", new FilePattern("B-", "-C"));
+        movePatternMap.put("tea", new FilePattern("B-", "-C"));
+        movePatternMap.put("convert-json", new FilePattern("B-", "-C"));
+        movePatternMap.put("convert-vector", new FilePattern("V-", "-C"));
+    }
+
+    // delete file pattern
+    static {
+//        deletePatternMap.put("bridge", new String[] {"scd"});
+        deletePatternMap.put("tea", new String[] {"scd"});
+        deletePatternMap.put("convert-json", new String[] {"scd"});
+        deletePatternMap.put("convert-vector", new String[] {"json"});
+        deletePatternMap.put("index-json", new String[] {"json"});
+        deletePatternMap.put("index-scd", new String[] {"json"});
+    }
+
+    // properties
+    static {
         configPath = "dpr.properties";
         props = new Properties();
         Path cfg = Paths.get(configPath);
@@ -42,6 +68,16 @@ public class DataPipelineRunner {
             collectionBaseDir = val.endsWith("/") ? val : val + "/";
         } else {
             collectionBaseDir = sf1Home + "collection/";
+        }
+    }
+
+    private static class FilePattern{
+        String prefix;
+        String suffix;
+
+        FilePattern(String prefix, String suffix) {
+            this.prefix = prefix;
+            this.suffix = suffix;
         }
     }
 
@@ -74,7 +110,7 @@ public class DataPipelineRunner {
     }
 
     // 지정한 확장자의 파일을 대상 디렉토리로 이동
-    private static void moveFiles(String srcDir, String destDir, String extension) throws IOException {
+    private static void moveFiles(String srcDir, String destDir, String extension, String prevStep) throws IOException {
         Path src = Paths.get(srcDir);
         if (!Files.exists(src) || !Files.isDirectory(src)) {
             return; // source directory not present
@@ -84,32 +120,51 @@ public class DataPipelineRunner {
             Files.createDirectories(dest);
         }
 
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(src, "*." + extension)) {
+        FilePattern patternDef = movePatternMap.get(prevStep);
+        if(patternDef == null) {
+            System.err.println("Unknown prevStep for pattern mapping: " + prevStep);
+            return;
+        }
+
+        // ex: ^V-.*-C\.json$ (prefix = V-, suffix = -C, extension = json)
+        String regex = "(?i)^" + Pattern.quote(patternDef.prefix) + ".*" +
+                Pattern.quote(patternDef.suffix) + "\\." + Pattern.quote(extension) + "$";
+
+        Pattern pattern = Pattern.compile(regex);
+
+        int movedCount = 0;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(src, path -> {
+            return pattern.matcher(path.getFileName().toString()).matches();
+        })) {
             for (Path file : stream) {
                 Files.move(file, dest.resolve(file.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+                movedCount++;
             }
+        }
+        if (movedCount == 0) {
+            System.out.println("No matching files found to move in: " + src);
         }
     }
 
     // 여러 소스 디렉토리의 파일을 한 번에 이동
-    private static void moveFilesBatch(String destDir, String extension, String... srcDirs) throws IOException {
+    private static void moveFilesBatch(String destDir, String extension, String prevStep, String... srcDirs) throws IOException {
         for (String dir : srcDirs) {
-            moveFiles(dir, destDir, extension);
+            moveFiles(dir, destDir, extension, prevStep);
         }
     }
 
     // 공통 SCD 이동 로직
     private static void prepareScdMove(String base, String destDir, String prevStep) throws IOException {
         if (prevStep == null) {
-            moveFilesBatch(destDir, "scd",
+            moveFilesBatch(destDir, "scd", prevStep,
                     base + "/scd/tea_done",
                     base + "/scd/static",
                     base + "/scd/dynamic");
         } else if ("tea".equals(prevStep)) {
-            moveFilesBatch(destDir, "scd",
+            moveFilesBatch(destDir, "scd", prevStep,
                     base + "/scd/tea_done");
         } else if ("bridge".equals(prevStep)) {
-            moveFilesBatch(destDir, "scd",
+            moveFilesBatch(destDir, "scd", prevStep,
                     base + "/scd/static",
                     base + "/scd/dynamic");
         }
@@ -118,14 +173,14 @@ public class DataPipelineRunner {
     // 공통 JSON 이동 로직
     private static void prepareJsonMove(String base, String destDir, String prevStep) throws IOException {
         if (prevStep == null) {
-            moveFilesBatch(destDir, "json",
+            moveFilesBatch(destDir, "json", prevStep,
                     base + "/convert-vector/backup",
                     base + "/convert-json/backup");
         } else if ("convert-vector".equals(prevStep)) {
-            moveFilesBatch(destDir, "json",
+            moveFilesBatch(destDir, "json", prevStep,
                     base + "/convert-vector/backup");
         } else if ("convert-json".equals(prevStep)) {
-            moveFilesBatch(destDir, "json",
+            moveFilesBatch(destDir, "json", prevStep,
                     base + "/convert-json/backup");
         }
     }
@@ -133,9 +188,18 @@ public class DataPipelineRunner {
     // tea2_util.sh 실행 전 필요한 파일 이동 처리
     private static void prepareForTea(String collectionId) throws IOException {
         String base = collectionBaseDir + collectionId + "/scd";
-        moveFilesBatch(base + "/tea_before", "scd",
+
+        moveFilesBatch(base + "/tea_before", "scd", "bridge",
                 base + "/static",
                 base + "/dynamic");
+
+        Path deleteDirectoryPath = Paths.get(base, "tea_done");
+        String[] deleteExts = deletePatternMap.get("tea");
+        if(deleteExts != null) {
+            for(String ext : deleteExts) {
+                deleteFilesMatching(deleteDirectoryPath, "tea", ext);
+            }
+        }
     }
 
     // gateway.sh 실행 전 필요한 파일 이동 처리
@@ -146,37 +210,71 @@ public class DataPipelineRunner {
         }
 
         String base = collectionBaseDir + collectionId;
+
+        Path deleteDirectoryPath = null;
         switch (operation) {
             case "convert-json":
+                deleteDirectoryPath = Paths.get(base, operation, "backup");
                 if ("tea".equals(prevStep)) {
-                    moveFiles(base + "/scd/tea_done", base + "/convert-json/index", "scd");
+                    moveFiles(base + "/scd/tea_done", base + "/convert-json/index", "scd", prevStep);
                 } else if ("bridge".equals(prevStep)) {
-                    moveFiles(base + "/scd/static", base + "/convert-json/index", "scd");
-                    moveFiles(base + "/scd/dynamic", base + "/convert-json/index", "scd");
+                    moveFiles(base + "/scd/static", base + "/convert-json/index", "scd", prevStep);
+                    moveFiles(base + "/scd/dynamic", base + "/convert-json/index", "scd", prevStep);
                 }
                 break;
             case "convert-vector":
+                deleteDirectoryPath = Paths.get(base, operation, "backup");
                 if ("convert-json".equals(prevStep)) {
-                    moveFiles(base + "/convert-json/backup", base + "/convert-vector/index", "json");
+                    moveFiles(base + "/convert-json/backup", base + "/convert-vector/index", "json", prevStep);
+                } else if ("bridge".equals(prevStep)) {
+                    moveFiles(base + "/json/static", base + "/convert-vector/index", "json", prevStep);
+                    moveFiles(base + "/json/dynamic", base + "/convert-vector/index", "json", prevStep);
                 }
                 break;
             case "index-json":
+                deleteDirectoryPath = Paths.get(base, "json", "backup");
                 if ("convert-vector".equals(prevStep)) {
-                    moveFiles(base + "/convert-vector/backup", base + "/json/index", "json");
+                    moveFiles(base + "/convert-vector/backup", base + "/json/index", "json", prevStep);
                 } else if ("convert-json".equals(prevStep)) {
-                    moveFiles(base + "/convert-json/backup", base + "/json/index", "json");
+                    moveFiles(base + "/convert-json/backup", base + "/json/index", "json", prevStep);
+                } else if ("bridge".equals(prevStep)) {
+                    moveFiles(base + "/json/static", base + "/json/index", "json", prevStep);
+                    moveFiles(base + "/json/dynamic", base + "/json/index", "json", prevStep);
                 }
                 break;
             case "index-scd":
+                deleteDirectoryPath = Paths.get(base, "scd", "backup");
                 if ("tea".equals(prevStep)) {
-                    moveFiles(base + "/scd/tea_done", base + "/scd/index", "scd");
+                    moveFiles(base + "/scd/tea_done", base + "/scd/index", "scd", prevStep);
                 } else if ("bridge".equals(prevStep)) {
-                    moveFiles(base + "/scd/static", base + "/scd/index", "scd");
-                    moveFiles(base + "/scd/dynamic", base + "/scd/index", "scd");
+                    moveFiles(base + "/scd/static", base + "/scd/index", "scd", prevStep);
+                    moveFiles(base + "/scd/dynamic", base + "/scd/index", "scd", prevStep);
                 }
                 break;
         }
+
+        String[] deleteExts = deletePatternMap.get(operation);
+        if(deleteExts != null) {
+            for(String ext : deleteExts) {
+                deleteFilesMatching(deleteDirectoryPath, operation, ext);
+            }
+        }
     }
+
+    // 삭제 유틸 메서드
+    private static void deleteFilesMatching(Path dir, String operation, String extension) throws IOException {
+        if (!Files.exists(dir)) return;
+        String pattern = "(?i)^.*\\." + Pattern.quote(extension) + "$";
+        Pattern compiled = Pattern.compile(pattern);
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, path -> {
+            return compiled.matcher(path.getFileName().toString()).matches();
+        })) {
+            for (Path file : stream) {
+                Files.delete(file);
+            }
+        }
+    }
+
     public static void main(String[] args) {
         // Check if config file specified as first argument
         int cmdIdx = 0;
@@ -202,6 +300,10 @@ public class DataPipelineRunner {
             } else {
                 collectionBaseDir = sf1Home + "collection/";
             }
+            String val = props.getProperty("tea.home.dir");
+            if (!sf1Home.endsWith("/")) {
+                teaHome += "/";
+            }
             cmdIdx = 1;
         }
 
@@ -214,6 +316,9 @@ public class DataPipelineRunner {
 
         // 명령어에 따라 각 스크립트를 실행
         try {
+//            String configFile = sf1Home;
+            Path configFilePath = null;
+            Path batchFilePath = null;
             switch (command) {
                 case "bridge":
                     if (args.length - cmdIdx != 4) {
@@ -231,14 +336,17 @@ public class DataPipelineRunner {
                         System.exit(1);
                     }
                     String collectionId = args[cmdIdx + 3];
-                    String subDir = "json".equals(extension) ? "" : extension + "/";
-                    String configFile = sf1Home + "/config/source/" + subDir + collectionId + ".xml";
-                    Path configPath = Paths.get(configFile);
-                    if (!Files.exists(configPath)) {
-                        System.err.println("Configuration file not found: " + configFile);
+                    String subDir = "json".equals(extension) ? "" : extension;
+
+                    configFilePath = Paths.get(sf1Home, "config", "source", subDir, (collectionId + ".xml"));
+//                    configFile += "/config/source/" + subDir + collectionId + ".xml";
+//                    configFilePath = Paths.get(configFile);
+                    if (configFilePath == null || !Files.exists(configFilePath)) {
+                        System.err.println("Configuration file not found: " + configFilePath.toString());
                         System.exit(1);
                     }
-                    new ProcessBuilder("sh", "bridge.sh", configFile, "db", collectionId, mode)
+                    batchFilePath = Paths.get(sf1Home, "batch", "bridge.sh");
+                    new ProcessBuilder("sh", batchFilePath.toString(), configFilePath.toString(), "db", collectionId, mode)
                             .inheritIO()
                             .start()
                             .waitFor();
@@ -253,7 +361,8 @@ public class DataPipelineRunner {
                     String listenerIP = args[cmdIdx + 2];
                     String port = args[cmdIdx + 3];
                     prepareForTea(collectionId);
-                    new ProcessBuilder("sh", "tea2_util.sh", collectionId, listenerIP, port)
+                    batchFilePath = Paths.get(teaHome, "batch", "tea2_util.sh");
+                    new ProcessBuilder("sh", batchFilePath.toString(), listenerIP, port, collectionId, "-te 2")
                             .inheritIO()
                             .start()
                             .waitFor();
@@ -281,9 +390,14 @@ public class DataPipelineRunner {
                         System.exit(1);
                     }
                     prepareForGateway(collectionId, operation, prevStep);
-                    String configFile = sf1Home + "/config/collection/" + operation + collectionId + ".yaml";
-                    Path configPath = Paths.get(configFile);
-                    new ProcessBuilder("sh", "gateway.sh", collectionId, operation, mode)
+
+                    configFilePath = Paths.get(sf1Home, "config", "collection", operation, (collectionId + ".yaml"));
+                    if (configFilePath == null || !Files.exists(configFilePath)) {
+                        System.err.println("Configuration file not found: " + configFilePath.toString());
+                        System.exit(1);
+                    }
+                    batchFilePath = Paths.get(sf1Home, "batch", "gateway.sh");
+                    new ProcessBuilder("sh", "gateway.sh", configFilePath.toString())
                             .inheritIO()
                             .start()
                             .waitFor();
@@ -298,76 +412,5 @@ public class DataPipelineRunner {
             e.printStackTrace();
             System.exit(1);
         }
-
-
-        /**
-         * 1. 스크립트 개별실행
-         *  1-1. bridge.sh 실행
-         *      * 인자값: extension: scd or json, mode: static or dynamic, collectionId
-         *      1-1-1. scd static 모드 실행
-         *      1-1-2. scd dynamic 모드 실행
-         *      1-1-3. json static 모드 실행
-         *      1-1-4. json dynamic 모드 실행
-         *      * 결과물: B-{이렇게저렇게}-{static일 경우 C, dynamic일 경우 U/D/I}.{extension.upperCase}
-         *      * 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/{extension}/{mode}/
-         *  1-2. tea2_util.sh 실행
-         *      * 선제작업: 1-1에서 진행한 결과물을 이동해야함
-         *          - 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/scd/tea_before/
-         *      * 인자값: collectionId, listenerIP, listenerPort
-         *      1-2-1. 실행
-         *      * 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/scd/tea_done/
-         *  1-3. gateway.sh 실행
-         *      * 인자값: collectionId, mode: [convert-json, convert-vector, index-json, index-scd], mode2: static or dynamic
-         *      * 선제작업
-         *          - 1-2 또는 1-1에서 진행한 결과물을 이동해야함(이동할 디렉토리는 아래 케이스별로 다름)
-         *          - convert-json, index-scd는 파일 확장자기 SCD인지 확인, convert-vector, index-json은 파일 확장자기 json인지 확인
-         *      1-3-1. convert-json 실행
-         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/convert-json/index
-         *          - 결과물: 기존 결과물 파일에서 확장자만 SCD -> json(소문자)로 변경됨
-         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/convert-json/backup
-         *      1-3-2. convert-vector 실행
-         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/convert-vector/index
-         *          - 결과물: 기존 결과물 파일에서 맨 앞 B -> V로 변경됨
-         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/convert-vector/backup
-         *      1-3-3. index-json static 모드 실행
-         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/json/index
-         *          - 결과물: 기존 결과물과 동일
-         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/json/backup
-         *      1-3-4. index-json dynamic 모드 실행
-         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/json/index
-         *          - 결과물: 기존 결과물과 동일
-         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/json/backup
-         *      1-3-5. index-scd static 모드 실행
-         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/scd/index
-         *          - 결과물: 기존 결과물과 동일
-         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/scd/backup
-         *      1-3-6. index-scd dynamic 모드 실행
-         *          - 선제작업으로 이동해야할 디렉토리: /sf1_data/collection/{collecitonId}/scd/index
-         *          - 결과물: 기존 결과물과 동일
-         *          - 결과물 저장 위치(자동저장됨): /sf1_data/collection/{collecitonId}/scd/backup
-         * 2. 스크립트 전체 실행
-         *  2-1. bridge scd static -> index-scd static
-         *      => [1-1-1] -> [1-3-5]
-         *  2-2. bridge scd static -> convert-json -> convert-vector -> index-json static
-         *      => [1-1-1] -> [1-3-1] -> [1-3-2] -> [1-3-5]
-         *  2-3. bridge scd static -> tea2_util -> convert-json -> convert-vector -> index-json static
-         *      => [1-1-1] -> [1-2-1] -> [1-3-1] -> [1-3-2] -> [1-3-5]
-         *  2-5. bridge scd dynamic -> index-scd dynamic
-         *      => [1-1-2] -> [1-3-6]
-         *  2-6. bridge scd dynamic -> convert-json -> convert-vector -> index-json dynamic
-         *      => [1-1-2] -> [1-3-1] -> [1-3-2] -> [1-3-6]
-         *  2-7. bridge scd dynamic -> tea2_util -> convert-json -> convert-vector -> index-json dynamic
-         *      => [1-1-2] -> [1-2-1] -> [1-3-1] -> [1-3-2] -> [1-3-6]
-         *  2-8. bridge json static -> index-json static
-         *      => [1-1-3] -> [1-3-3]
-         *  2-9. bridge json static -> convert-vector -> index-json static
-         *      => [1-1-3] -> [1-3-2] -> [1-3-3]
-         *  2-10. bridge json dynamic -> index-json dynamic
-         *      => [1-1-4] -> [1-3-4]
-         *  2-11. bridge json dynamic -> convert-vector -> index-json dynamic
-         *      => [1-1-4] -> [1-3-2] -> [1-3-4]
-         */
-
-
     }
 }
