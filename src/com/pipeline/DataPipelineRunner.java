@@ -143,6 +143,7 @@ public class DataPipelineRunner {
         }
         if (movedCount == 0) {
             System.out.println("No matching files found to move in: " + src);
+            System.exit(1);
         }
     }
 
@@ -300,8 +301,8 @@ public class DataPipelineRunner {
             } else {
                 collectionBaseDir = sf1Home + "collection/";
             }
-            String val = props.getProperty("tea.home.dir");
-            if (!sf1Home.endsWith("/")) {
+            teaHome = props.getProperty("tea.home.dir", DEFAULT_TEA_HOME);
+            if (!teaHome.endsWith("/")) {
                 teaHome += "/";
             }
             cmdIdx = 1;
@@ -335,6 +336,11 @@ public class DataPipelineRunner {
                         System.out.println("Invalid mode: " + mode + " (allowed: static, dynamic)");
                         System.exit(1);
                     }
+                    batchFilePath = Paths.get(sf1Home, "batch", "bridge.sh");
+                    if(!Files.exists(batchFilePath)) {
+                        System.err.println("TEA batch not found: " + batchFilePath.toString());
+                        System.exit(1);
+                    }
                     String collectionId = args[cmdIdx + 3];
                     String subDir = "json".equals(extension) ? "" : extension;
 
@@ -345,7 +351,6 @@ public class DataPipelineRunner {
                         System.err.println("Configuration file not found: " + configFilePath.toString());
                         System.exit(1);
                     }
-                    batchFilePath = Paths.get(sf1Home, "batch", "bridge.sh");
                     new ProcessBuilder("sh", batchFilePath.toString(), configFilePath.toString(), "db", collectionId, mode)
                             .inheritIO()
                             .start()
@@ -357,11 +362,15 @@ public class DataPipelineRunner {
                         System.out.println("Usage: tea <collectionId> <listenerIP> <port>");
                         System.exit(1);
                     }
+                    batchFilePath = Paths.get(teaHome, "batch", "tea2_util.sh");
+                    if(!Files.exists(batchFilePath)) {
+                        System.err.println("TEA batch not found: " + batchFilePath.toString());
+                        System.exit(1);
+                    }
                     collectionId = args[cmdIdx + 1];
                     String listenerIP = args[cmdIdx + 2];
                     String port = args[cmdIdx + 3];
                     prepareForTea(collectionId);
-                    batchFilePath = Paths.get(teaHome, "batch", "tea2_util.sh");
                     new ProcessBuilder("sh", batchFilePath.toString(), listenerIP, port, collectionId, "-te 2")
                             .inheritIO()
                             .start()
@@ -389,14 +398,18 @@ public class DataPipelineRunner {
                         System.out.println("Invalid prevStep: " + prevStep + " (allowed: bridge, tea, convert-json, convert-vector, index-json, index-scd)");
                         System.exit(1);
                     }
-                    prepareForGateway(collectionId, operation, prevStep);
-
+                    batchFilePath = Paths.get(sf1Home, "batch", "gateway.sh");
+                    if(!Files.exists(batchFilePath)) {
+                        System.err.println("TEA batch not found: " + batchFilePath.toString());
+                        System.exit(1);
+                    }
                     configFilePath = Paths.get(sf1Home, "config", "collection", operation, (collectionId + ".yaml"));
                     if (configFilePath == null || !Files.exists(configFilePath)) {
                         System.err.println("Configuration file not found: " + configFilePath.toString());
                         System.exit(1);
                     }
-                    batchFilePath = Paths.get(sf1Home, "batch", "gateway.sh");
+                    prepareForGateway(collectionId, operation, prevStep);
+
                     new ProcessBuilder("sh", "gateway.sh", configFilePath.toString())
                             .inheritIO()
                             .start()
