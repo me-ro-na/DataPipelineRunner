@@ -47,9 +47,9 @@ ${SF1_HOME}/
    ```
 2. 파일들을 지정 디렉토리로 이동합니다.
     ```bash
-   mkdir -p ${SF1_HOME}/lib/custom
-   mv ./DataPipelineRunner.java ${SF1_HOME}/lib/custom
-   mv ./dpr.properties ${SF1_HOME}/lib/custom
+   mkdir -p ${SF1_HOME}/lib/custom/DataPipelineRunner
+   mv ./DataPipelineRunner.java ${SF1_HOME}/lib/custom/DataPipelineRunner
+   mv ./dpr.properties ${SF1_HOME}/lib/custom/DataPipelineRunner
    mv ./run_dpr.sh ${SF1_HOME}/batch
     ```
 
